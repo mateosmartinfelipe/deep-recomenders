@@ -5,11 +5,16 @@ from pathlib import Path, PurePath
 import logging
 import pandas as pd
 from argparse import ArgumentParser
-from typing import List
+from typing import List, Tuple, TypeVar
 import random
+from torch.utils.data import DataLoader
+import numpy as np
+from utils import NCF, split_t_v_t
 
 # Neutral Collaborative Filtering
 #
+
+EPOCHS = 10
 logging.basicConfig(level=logging.DEBUG)
 
 
@@ -49,68 +54,54 @@ def main(args):
 
     items_idx_mapping = {item: idx for idx, item in enumerate(items["id"].to_list())}
     user_idx_mapping = {user: idx for idx, user in enumerate(users["u"].to_list())}
-    # brute force as the length of the list varies
-    users = iterations["u"].to_list()
-    items_list = iterations["items"].to_list()
-    users_items = []
-    for i, v in enumerate(users):
-        for e in [int(n) for n in items_list[i].strip("][").split(", ")]:
-            users_items.append((v, e))
-    random.shuffle(users_items)
+
     # DATA
     # users -> user_idx_mapping to create the Embeding for users
     # items -> items_idx_mapping to create the embedding for items
     # users_items -> (user,item) data to build the model
+    train_data, validation_data, test_data = split_t_v_t(iterations)
 
+    # WE NEED THE TRAINNG
 
-class NCF(nn.Module):
-    def __init__(
-        self,
-        stage: str,
-        num_of_items: int,
-        num_of_users: int,
-        embbeding_size: int,
-        mlp_layers: List[int],
-        num_class: int = 1,
-        dropout: float = 0.2,
-    ) -> None:
-        super().__init__()
-        # WETHER WE ARE TRAINING OR INFERING
-        self.stage = stage
-        # LEARNABLE ITEM EMBEDDING
-        self.items = nn.Embedding(num_of_items, embbeding_size)
-        # LERNABLE USER EMBEDDING
-        self.users = nn.Embedding(num_of_users, embbeding_size)
-        num_layers = [embbeding_size * 2].extend(mlp_layers)
-        self.norm = nn.LayerNorm(embbeding_size * 2)
-        self.dense = nn.Linear(embbeding_size + num_layers[-1], num_class)
-        mlp_layers = []
-        for units in range(1, len(num_layers)):
-            mlp_layers.append(
-                nn.Linear(num_layers[units - 1], num_layers[units], bias=True)
-            )
-            mlp_layers.append(nn.ReLU())
-            mlp_layers.append(nn.LayerNorm(num_layers[units]))
-            mlp_layers.append(nn.Dropout(dropout))
-        self.mlp = nn.ModuleList(mlp_layers)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, input):
-        user, item = input
-        user_encode = self.users(user)
-        item_encode = self.items(item)
-        matrix_fact = torch.einsum("ij,ij -> ij")
-        input = self.norm(torch.cat(user_encode, item_encode), axis=1)
-        mlp_out = self.mlp(input)
-        out = self.dense(torch.cat(matrix_fact, mlp_out))
-        return self.sigmoid(out)
-
-    optimizer = torch.optim.Adam()
+    nfc = NCF(
+        stage="training",
+        num_of_items=len(items_idx_mapping),
+        num_of_users=len(user_idx_mapping),
+        embbeding_size=64,
+        hidden_layers_dim=[40, 20, 10],
+    )
+    optimizer = torch.optim.Adam(params=nfc.parameters())
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
-    loss = torch.nn.MSELoss()
+    loss_fn = lambda pre, label: torch.mean(abs(pre - label))
+    train = DataLoader(train_data, batch_size=64, shuffle=True)
+    validation = DataLoader(validation_data, batch_size=64, shuffle=False)
+    test = DataLoader(test_data, batch_size=64, shuffle=False)
 
-
-# WE NEED THE TRAINNG
+    running_loss = 0
+    for epoch in range(0, EPOCHS):
+        scheduler.step()
+        for i, elem in enumerate(train):
+            # zero grads for batch ( torch accumulate grads)
+            optimizer.zero_grad()
+            x, y = elem
+            pred = nfc(x)
+            # computing the loss and its fradients
+            loss = loss_fn(pred, y)
+            loss.backward()
+            # updating step
+            optimizer.step()
+            running_loss += loss
+            if i % 1000:
+                last_lost = running_loss / 1000
+                logging.info(f"Train : {epoch}:{i}:{last_lost}")
+                running_loss = 0
+        running_loss = 0
+        for i, elem in enumerate(test):
+            x, y = elem
+            pred = nfc(x)
+            loss = loss_fn(pred, y)
+            running_loss += loss
+        logging.info(f"Validation {epoch}:{i}:{running_loss/len(test)}")
 
 
 if __name__ == "__main__":
