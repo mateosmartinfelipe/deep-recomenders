@@ -1,15 +1,11 @@
-from numpy import dtype
-from torch import nn
 import torch
-import os
-from pathlib import Path, PurePath
+from pathlib import Path
 import logging
 import pandas as pd
 from argparse import ArgumentParser
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils import NCF, split_t_v_t, UserItemLabelSet
-from torch import profiler
 
 # Neutral Collaborative Filtering
 #
@@ -23,7 +19,7 @@ def parse_args():
         description="Train a Neural Collaborative" " Filtering model"
     )
     parser.add_argument("--root", type=str, help="project path")
-    parser.set_defaults(root=PurePath(__file__).parent.parent)
+    parser.set_defaults(root=Path(__file__).parent.parent)
     return parser.parse_args()
 
 
@@ -31,21 +27,21 @@ args = parse_args()
 
 
 def main(args):
-    items = PurePath(args.root) / "data" / "PP_recipes.csv"
+    items = Path(args.root) / "data" / "PP_recipes.csv"
     logging.info(f"Items data : {items}")
     items = pd.read_csv(items)
     logging.info(f"Items :")
     logging.info(items.head())
     logging.info(items.columns)
 
-    users = PurePath(args.root) / "data" / "PP_users.csv"
+    users = Path(args.root) / "data" / "PP_users.csv"
     logging.info(f"Items data : {users}")
     users = pd.read_csv(users)
     logging.info(f"Items :")
     logging.info(users.head())
     logging.info(users.columns)
 
-    iterations = PurePath(args.root) / "data" / "PP_users.csv"
+    iterations = Path(args.root) / "data" / "PP_users.csv"
     logging.info(f"Items data : {iterations}")
     iterations = pd.read_csv(iterations)
     logging.info(f"Iterations :")
@@ -59,7 +55,9 @@ def main(args):
     # users -> user_idx_mapping to create the Embeding for users
     # items -> items_idx_mapping to create the embedding for items
     # users_items -> (user,item) data to build the model
-    train_data, validation_data, test_data = split_t_v_t(iterations)
+    train_data, validation_data, test_data = split_t_v_t(
+        iterations, folder=Path(args.root) / "data"
+    )
 
     # WE NEED THE TRAINNG
 
@@ -72,8 +70,10 @@ def main(args):
     )
     optimizer = torch.optim.Adam(params=nfc.parameters())
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
-    loss_fn = lambda pre, label: torch.mean(torch.abs(pre - label))
-    train = DataLoader(UserItemLabelSet(train_data), batch_size=64, shuffle=True)
+    loss_fn = torch.nn.MSELoss()
+    train = DataLoader(
+        UserItemLabelSet(train_data), batch_size=64, shuffle=True, num_workers=4
+    )
     validation = DataLoader(
         UserItemLabelSet(validation_data), batch_size=64, shuffle=False
     )
@@ -83,12 +83,14 @@ def main(args):
     for epoch in range(0, EPOCHS):
         for i, elem in enumerate(tqdm(train)):
             # zero grads for batch ( torch accumulate grads)
-            optimizer.zero_grad()
+            # CAVEATS MIGHT APPLY ( SET_TO_NONE ) # Seems to have make the cpu used way better
+            optimizer.zero_grad(set_to_none=True)
             # Try https://discuss.pytorch.org/t/dataloader-overrides-tensor-type/9861
             # but it did not work out , might be becouse the output of the dataset is a tuple
             pred = nfc(elem[:, 0].to(torch.int64), elem[:, 1].to(torch.int64))
             # computing the loss and its fradients
-            loss = loss_fn(pred, elem[:, -1])
+            # loss = loss_fn(pred, elem[:, -1])
+            loss = loss_fn(pred, elem[:, -1].to(torch.float))
             loss.backward()
             # updating step
             optimizer.step()
@@ -100,18 +102,20 @@ def main(args):
 
         running_loss = 0
         scheduler.step()
-        for i, elem in enumerate(test):
-            x, y = elem
-            pred = nfc(x)
-            loss = loss_fn(pred, y)
-            running_loss += loss
-        logging.info(
-            f"Validation ->  epoch :{epoch} batch :{i} loss :{running_loss/len(test)}"
-        )
+        with torch.inference_mode():
+            for i, elem in enumerate(test):
+                x, y = elem
+                pred = nfc(elem[:, 0].to(torch.int64), elem[:, 1].to(torch.int64))
+                loss = loss_fn(pred, elem[:, -1].to(torch.float))
+                running_loss += loss
+            logging.info(
+                f"Validation ->  epoch :{epoch} batch :{i} loss :{running_loss/len(test)}"
+            )
+        torch.train()
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--root", type=str, help="project path")
-    parser.set_defaults(root=PurePath(__file__).parent.parent)
+    parser.set_defaults(root=Path(__file__).parent.parent)
     main(parser.parse_args())
