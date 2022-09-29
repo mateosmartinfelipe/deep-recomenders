@@ -1,3 +1,4 @@
+from numpy import dtype
 from torch import nn
 import torch
 import os
@@ -5,11 +6,10 @@ from pathlib import Path, PurePath
 import logging
 import pandas as pd
 from argparse import ArgumentParser
-from typing import List, Tuple, TypeVar
-import random
 from torch.utils.data import DataLoader
-import numpy as np
-from utils import NCF, split_t_v_t
+from tqdm import tqdm
+from utils import NCF, split_t_v_t, UserItemLabelSet
+from torch import profiler
 
 # Neutral Collaborative Filtering
 #
@@ -72,36 +72,42 @@ def main(args):
     )
     optimizer = torch.optim.Adam(params=nfc.parameters())
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
-    loss_fn = lambda pre, label: torch.mean(abs(pre - label))
-    train = DataLoader(train_data, batch_size=64, shuffle=True)
-    validation = DataLoader(validation_data, batch_size=64, shuffle=False)
-    test = DataLoader(test_data, batch_size=64, shuffle=False)
+    loss_fn = lambda pre, label: torch.mean(torch.abs(pre - label))
+    train = DataLoader(UserItemLabelSet(train_data), batch_size=64, shuffle=True)
+    validation = DataLoader(
+        UserItemLabelSet(validation_data), batch_size=64, shuffle=False
+    )
+    test = DataLoader(UserItemLabelSet(test_data), batch_size=64, shuffle=False)
 
     running_loss = 0
     for epoch in range(0, EPOCHS):
-        scheduler.step()
-        for i, elem in enumerate(train):
+        for i, elem in enumerate(tqdm(train)):
             # zero grads for batch ( torch accumulate grads)
             optimizer.zero_grad()
-            x, y = elem
-            pred = nfc(x)
+            # Try https://discuss.pytorch.org/t/dataloader-overrides-tensor-type/9861
+            # but it did not work out , might be becouse the output of the dataset is a tuple
+            pred = nfc(elem[:, 0].to(torch.int64), elem[:, 1].to(torch.int64))
             # computing the loss and its fradients
-            loss = loss_fn(pred, y)
+            loss = loss_fn(pred, elem[:, -1])
             loss.backward()
             # updating step
             optimizer.step()
             running_loss += loss
-            if i % 1000:
+            if i % 1000 == 0:
                 last_lost = running_loss / 1000
-                logging.info(f"Train : {epoch}:{i}:{last_lost}")
+                logging.info(f"Train->  epoch :{epoch} batch :{i} loss :{last_lost}")
                 running_loss = 0
+
         running_loss = 0
+        scheduler.step()
         for i, elem in enumerate(test):
             x, y = elem
             pred = nfc(x)
             loss = loss_fn(pred, y)
             running_loss += loss
-        logging.info(f"Validation {epoch}:{i}:{running_loss/len(test)}")
+        logging.info(
+            f"Validation ->  epoch :{epoch} batch :{i} loss :{running_loss/len(test)}"
+        )
 
 
 if __name__ == "__main__":

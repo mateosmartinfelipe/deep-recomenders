@@ -4,33 +4,41 @@ import random
 import torch.nn as nn
 import torch
 from torch.utils.data import Dataset
+import numpy as np
 
-item_user = TypeVar("item_user", bound=Tuple[int, int])
-record = TypeVar("record", bound=Tuple[int, int])
+item_user = TypeVar("item_user", bound=Tuple[int, int, int])
+record = TypeVar("record", bound=Tuple[int, int, int])
 
 
 def split_t_v_t(
     data: pd.DataFrame, label: int = 1.0
-) -> Tuple[List[record], List[record], List[record]]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     train = 0.7
     validation = (1.0 - train) / 2
     test = 1 - train - validation
     users = data["u"].to_list()
     items_list = data["items"].to_list()
-    users_items_train = []
-    users_items_val = []
-    users_items_test = []
+    train_ = []
+    validation_ = []
+    test_ = []
+
     for i, v in enumerate(users):
         items_view = [int(n) for n in items_list[i].strip("][").split(", ")]
         for e in items_view:
             r = random.random()
             if r <= test:
-                users_items_test.append(((v, e), label))
+                test_.append([v, e, label])
             elif test < random.random() <= test + validation:
-                users_items_val.append(((v, e), label))
+                validation_.append([v, e, label])
             else:
-                users_items_train.append(((v, e), label))
-    return users_items_train, users_items_train, users_items_test
+                train_.append([v, e, label])
+    # we are convert the data to array otherwise ( using list ) will give us a oom
+    random.shuffle(train_)
+    train_ = np.asarray(train_)
+    validation_ = np.array(validation_)
+    test_ = np.array(test_)
+
+    return train_, validation_, test_
 
 
 class NCF(nn.Module):
@@ -67,11 +75,11 @@ class NCF(nn.Module):
         self.mlp = nn.ModuleList(mlp_layers)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, input):
-        user, item = input
+    def forward(self, user, item):
         user_encode = self.users(user)
         item_encode = self.items(item)
         matrix_fact = torch.einsum("ij,ij -> ij", user_encode, item_encode)
+        # matrix_fact = torch.matmul(user_encode, item_encode)
         user_item_tensor = self.norm(torch.cat([user_encode, item_encode], dim=1))
         for layer in self.mlp:
             user_item_tensor = layer(user_item_tensor)
@@ -82,14 +90,14 @@ class NCF(nn.Module):
 # lets create a data Dataset class to deal with the data loading
 
 
-class DataFromDataFrame(Dataset):
-    def __init__(self, data: List[record]) -> None:
-        super(DataFromDataFrame, self).__init__()
+class UserItemLabelSet(Dataset):
+    def __init__(self, data: np.ndarray) -> None:
+        super(UserItemLabelSet, self).__init__()
         self.data = data
-        random.shuffle(self.data)
 
     def __len__(self) -> int:
-        return len(self.users_items)
+        return len(self.data)
 
     def __getitem__(self, i) -> item_user:
+
         return self.data[i]
