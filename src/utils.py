@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import List, Tuple, TypeVar, Iterable
 import pandas as pd
@@ -9,6 +10,7 @@ import numpy as np
 from copy import deepcopy
 import itertools
 import pickle
+from tqdm import tqdm
 
 item_user = TypeVar("item_user", bound=Tuple[int, int, int])
 record = TypeVar("record", bound=Tuple[int, int, int])
@@ -48,7 +50,8 @@ def split_t_v_t(
             for i in range(0, len(items_list))
         ]
         items_set = set(itertools.chain(*items_list_as_list))
-        for i, v in enumerate(users):
+        logging.info("CREATING POSITIVE AND NEGATIVE DATASET")
+        for i, v in enumerate(tqdm(users)):
             for e in items_list_as_list[i]:
                 r = random.random()
                 if r <= test:
@@ -78,7 +81,7 @@ def split_t_v_t(
         pickle.dump(train_, file=open(folder / "train.pkl", "wb"))
         pickle.dump(validation_, file=open(folder / "validation.pkl", "wb"))
         pickle.dump(test_, file=open(folder / "test.pkl", "wb"))
-        return train_, validation_, test_
+    return train_, validation_, test_
 
 
 class NCF(nn.Module):
@@ -124,7 +127,7 @@ class NCF(nn.Module):
         for layer in self.mlp:
             user_item_tensor = layer(user_item_tensor)
         out = self.dense(torch.cat([matrix_fact, user_item_tensor], dim=1))
-        return self.sigmoid(out)
+        return out  # self.sigmoid(out)
 
 
 # lets create a data Dataset class to deal with the data loading

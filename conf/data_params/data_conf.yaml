@@ -1,0 +1,6 @@
+    dir: data/ 
+    negative_percent: 0.5
+    train_percent: 0.7
+    train_dataset: "train.pkl"
+    test_dataset: "train.pkl"
+    validation_dataset: "train.pkl"
