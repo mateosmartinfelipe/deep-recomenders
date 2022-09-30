@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -8,7 +8,7 @@ class General:
 
 
 @dataclass
-class ModelConfig:
+class ModelParamsConf:
     dir: str
     epochs: int
     batch_size: int
@@ -18,6 +18,20 @@ class ModelConfig:
     step: float
     embbeding_size: int
     hidden_layers_dim: List[int]
+
+
+@dataclass
+class ModelParamsHpConf:
+    dampping: List[float]
+    lr: List[float]
+    gamma: List[float]
+    embbeding_size: List[float]
+
+
+@dataclass
+class ModelConfig:
+    params: ModelParamsConf
+    hp: Optional[ModelParamsHpConf]
 
 
 @dataclass
