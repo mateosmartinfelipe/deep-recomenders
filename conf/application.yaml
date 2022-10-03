@@ -28,7 +28,7 @@ model_params:
         embedding_size:
             type: "range"
             bounds: [16,128]
-
+    run_hp: False
 data_params:
     dir: data/
     negative_percent: 0.5

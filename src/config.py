@@ -37,7 +37,8 @@ class ModelParamsHpConf:
 @dataclass
 class ModelConfig:
     params: ModelParamsConf
-    hp: Optional[List[ModelParamsHpConf]]
+    hp: Optional[ModelParamsHpConf]
+    run_hp: bool
 
 
 @dataclass

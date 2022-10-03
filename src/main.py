@@ -1,5 +1,4 @@
 import logging
-from argparse import ArgumentParser
 from pathlib import Path
 
 import hydra
@@ -15,21 +14,14 @@ from neural_collaborative_filtering import UserItemLabelSet, split_t_v_t, train
 logging.basicConfig(level=logging.DEBUG)
 
 
-def parse_args():
-    parser = ArgumentParser(
-        description="Train a Neural Collaborative" " Filtering model"
-    )
-    parser.add_argument("--hp", type=bool, help="train with hp selection")
-    return parser.parse_args()
-
-
 cs = ConfigStore.instance()
 cs.store(name="application_conf", node=ApplicationConf)
+# overwrite config arguments
+# python src/main.py model_params.run_hp=False
 
 
 @hydra.main(config_path="../conf", config_name="application.yaml")
 def main(args: ApplicationConf):
-    # cli_args = parse_args()
     args.general.root = str(Path(__file__).parent.parent)
     # dataclass do not accept for  now Path objects
     items = Path(args.general.root) / args.data_params.dir / "PP_recipes.csv"
@@ -88,21 +80,21 @@ def main(args: ApplicationConf):
         batch_size=args.model_params.params.batch_size,
         shuffle=False,
     )
-
-    trained_model, final_loss = train(
-        train=train_data,
-        validate=validation_data,
-        args=args.model_params,
-        num_of_users=len(user_idx_mapping),
-        num_of_items=len(items_idx_mapping),
-        # the reason to detach those params from the args,
-        # is to make it easier to test
-        # pass the bo selection to a new model.
-        embeddings_size=args.model_params.params.embedding_size,
-        scheduler_step=args.model_params.params.step,
-        scheduler_gamma=args.model_params.params.gamma,
-        lr=args.model_params.params.lr,
-    )
+    if args.model_params.run_hp:
+        trained_model, final_loss = train(
+            train=train_data,
+            validate=validation_data,
+            args=args.model_params,
+            num_of_users=len(user_idx_mapping),
+            num_of_items=len(items_idx_mapping),
+            # the reason to detach those params from the args,
+            # is to make it easier to test
+            # pass the bo selection to a new model.
+            embeddings_size=args.model_params.params.embedding_size,
+            scheduler_step=args.model_params.params.step,
+            scheduler_gamma=args.model_params.params.gamma,
+            lr=args.model_params.params.lr,
+        )
 
 
 if __name__ == "__main__":
