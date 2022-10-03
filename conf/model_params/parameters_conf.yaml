@@ -1,15 +1,23 @@
-    params:
-        dir: info/
-        epochs: 10
-        batch_size: 64
-        dampping: 0.99
-        lr: 0.1
-        gamma: 0.1
-        step: 2
-        hidden_layers_dim: [40, 20, 10]
-        embbeding_size : 64
-    hp:
-       dampping: [0.95,0.99] 
-       lr: [0.001,0.05]
-       gamma: [0.1,0.5]
-       embbeding_size: [16,128]
+params:
+    dir: info/
+    epochs: 10
+    batch_size: 64
+    damping: 0.99
+    lr: 0.1
+    gamma: 0.1
+    step: 2
+    hidden_layers_dim: [40, 20, 10]
+    embedding_size : 64
+hp:
+    damping:
+        type: "range"
+        bounds: [0.95,0.99]
+    lr:
+        type: "range"
+        bounds: [0.001,0.05]
+    gamma:
+        type: "range"
+        bounds: [0.1,0.5]
+    embedding_size:
+        type: "range"
+        bounds: [16,128]
