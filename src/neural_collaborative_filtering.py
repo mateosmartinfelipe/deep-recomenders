@@ -234,7 +234,7 @@ class NCF(nn.Module):
             mlp_layers.append(nn.ReLU())
             mlp_layers.append(nn.LayerNorm(hidden_layers_dim[units]))
             mlp_layers.append(nn.Dropout(dropout))
-        self.mlp = nn.ModuleList(mlp_layers)
+        self.mlp = nn.ModuleList(mlp_layers[:-3])
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, user, item):

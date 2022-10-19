@@ -2,6 +2,8 @@
 ##  Neural collaborative Filter in pytorch
 ##### https://github.com/NVIDIA/DeepLearningExamples/tree/master/TensorFlow/Recommendation/NCF
 
+#### Using netron : https://github.com/lutzroeder/netron
+###  To visualize the onnx model
 
 ### application schema on mermaid Data transformation
 ```mermaid

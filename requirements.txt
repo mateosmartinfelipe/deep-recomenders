@@ -1,3 +1,9 @@
 hydra-core
+# mlflow
+mlflow~= 1.29
+onnx
+# Championed by Microsoft
+onnxruntime
 pandas
 torch
+tqdm
