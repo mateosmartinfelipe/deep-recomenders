@@ -5,6 +5,8 @@ from typing import List, Optional
 @dataclass
 class General:
     root: str
+    model_folder: str
+    mlflow_url: str
 
 
 @dataclass
@@ -16,6 +18,9 @@ class Hp:
 @dataclass
 class ModelParamsConf:
     dir: str
+    model_root_name: str
+    pt_name: str
+    onnx_name: str
     epochs: int
     batch_size: int
     damping: float

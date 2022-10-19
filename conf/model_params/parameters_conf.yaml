@@ -1,5 +1,8 @@
 params:
     dir: info/
+    model_root_name : nfc_recommender
+    pt_name: ${.model_root_name}.pt
+    onnx_name: ${.model_root_name}.onnx
     epochs: 10
     batch_size: 64
     damping: 0.99
