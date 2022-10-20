@@ -1,6 +1,7 @@
 hydra-core
 # mlflow
-mlflow~= 1.29
+# mlflow~= 1.29
+mlflow-skinny~=1.29
 onnx
 # Championed by Microsoft
 onnxruntime

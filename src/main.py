@@ -9,7 +9,7 @@ from hydra.core.config_store import ConfigStore
 from torch.utils.data import DataLoader
 
 from config import ApplicationConf
-from mlflow_utils import save_model, stage_to_prod
+from mlflow_utils import save_artifacts, save_model, stage_to_prod
 from models import Stats
 from neural_collaborative_filtering import UserItemLabelSet, split_t_v_t, train
 
@@ -55,11 +55,12 @@ def main(args: ApplicationConf):
     logging.info(iterations.columns)
 
     items_idx_mapping = {
-        item: idx for idx, item in enumerate(items["id"].to_list())
+        idx: item for idx, item in enumerate(items["id"].to_list())
     }
     user_idx_mapping = {
-        user: idx for idx, user in enumerate(users["u"].to_list())
+        idx: user for idx, user in enumerate(users["u"].to_list())
     }
+    # Saving the items mapping used to be able to used
 
     # DATA
     # users -> user_idx_mapping to create the Embedding for users
@@ -119,6 +120,13 @@ def main(args: ApplicationConf):
         experiment_name=args.model_params.params.model_root_name,
         model_name=args.model_params.params.onnx_name,
         stats=stats,
+    )
+    # this is because without the S3 or other
+    # file storage we can save the artifacts
+    save_artifacts(
+        run_id=mlf_save_output.run_info.run_id,
+        items=items_idx_mapping,
+        args=args,
     )
     # Should go to Production
     productionalized = stage_to_prod(

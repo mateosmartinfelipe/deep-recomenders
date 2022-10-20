@@ -1,3 +1,4 @@
 root: ${hydra:runtime.cwd}/
 model_folder : "bin"
 mlflow_url: "http://localhost:5000/"
+share_volume: "/Users/felipemateos/Personal/mlflow_temp/"

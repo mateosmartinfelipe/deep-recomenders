@@ -1,10 +1,27 @@
+import pickle
 from dataclasses import asdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import mlflow
 import onnx
 from mlflow.entities import ViewType
 
+from config import ApplicationConf
 from models import MlFlowSaveModelOutput, Stats
+
+
+def save_artifacts(
+    run_id: str, items: Dict[Any, Any], args: ApplicationConf
+) -> None:
+    dir = Path(args.general.share_volume) / run_id
+    dir.mkdir(parents=True, exist_ok=True)
+    items_dict_file = Path(dir) / "items.pkl"
+    config_file = Path(dir) / "config.pkl"
+    with open(items_dict_file, "bw") as filehandler:
+        pickle.dump(items, filehandler)
+    with open(config_file, "bw") as filehandler:
+        pickle.dump(args, filehandler)
 
 
 def save_model(
@@ -13,15 +30,27 @@ def save_model(
     experiment_name: str,
     model_name: str,
     stats: Stats,
+    other_artifacts: Optional[List[Path]] = None,
 ) -> MlFlowSaveModelOutput:
     mlflow.set_tracking_uri(mlflow_uri)
     client = mlflow.tracking.MlflowClient()
-    experiment_id = mlflow.get_experiment_by_name(
-        experiment_name
-    ).experiment_id
-    if experiment_id is None:
+    experiment = mlflow.get_experiment_by_name(experiment_name)
+    if experiment is None:
         experiment_id = mlflow.create_experiment(name=experiment_name)
+    else:
+        experiment_id = experiment.experiment_id
     with mlflow.start_run(experiment_id=experiment_id) as run:
+        # logging other artifacts that we would
+        # like to update with our model
+        # Can not be easily done without a location available
+        # if no location accessible to the mlflow server and the artifact
+        # we us trick and saving the files to the mapped
+        # volume
+        # Server like S3
+        if other_artifacts:
+            for artifact in other_artifacts:
+                mlflow.log_artifacts(artifact)
+
         # logging stats for the trained model
         mlflow.log_metrics(asdict(stats))
         # Model search

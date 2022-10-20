@@ -7,6 +7,7 @@ class General:
     root: str
     model_folder: str
     mlflow_url: str
+    share_volume: str
 
 
 @dataclass
